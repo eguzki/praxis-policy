@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Praxis Contributors
 
-// Entity-less and unphased like `identity.resolve`: the host calls these
-// around identity resolution, not at an APL phase boundary.
-
-use crate::http_hook::HttpHook;
+use crate::{
+    cmf::{CmfHook, constants::ENTITY_LLM},
+    http_hook::HttpHook,
+};
 
 crate::define_hooks! {
     /// The rate-limit family's rows in the built-in hook metadata table.
@@ -18,4 +18,8 @@ crate::define_hooks! {
     /// `identity.resolve`, so a limit can key on the resolved subject.
     HOOK_RATELIMIT_POST_IDENTITY: "ratelimit.post_identity" =>
         family: HttpHook, entity: None, phase: Unphased;
+    /// Rate-limit hook a host calls once per request, after the first
+    /// `cmf.llm_input`, so a limit can key on the resolved llm model id.
+    HOOK_RATELIMIT_LLM_INPUT: "ratelimit.llm_input" =>
+        family: CmfHook, entity: Some(ENTITY_LLM), phase: Pre;
 }

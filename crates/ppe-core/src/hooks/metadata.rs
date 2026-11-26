@@ -316,7 +316,9 @@ mod tests {
     use crate::http_hook::{HOOK_HTTP_REQUEST, HOOK_HTTP_RESPONSE, HttpHook};
     use crate::identity::{HOOK_IDENTITY_RESOLVE, IdentityHook};
     use crate::metadata::{HOOK_METADATA_FETCH, MetadataFetchHook};
-    use crate::ratelimit_hook::{HOOK_RATELIMIT_POST_IDENTITY, HOOK_RATELIMIT_PRE_IDENTITY};
+    use crate::ratelimit_hook::{
+        HOOK_RATELIMIT_LLM_INPUT, HOOK_RATELIMIT_POST_IDENTITY, HOOK_RATELIMIT_PRE_IDENTITY,
+    };
 
     #[test]
     fn cmf_tool_pre_invoke_is_pre_phase_for_tool_entity() {
@@ -340,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn ratelimit_hooks_are_unphased_no_entity() {
+    fn ratelimit_identity_hooks_are_unphased_no_entity() {
         for name in [HOOK_RATELIMIT_PRE_IDENTITY, HOOK_RATELIMIT_POST_IDENTITY] {
             let meta = lookup(name).expect("registered");
             assert_eq!(meta.entity_type, None, "{name} applies to any route");
@@ -355,6 +357,13 @@ mod tests {
                 "{name} carries the HTTP payload limiters read",
             );
         }
+    }
+
+    #[test]
+    fn ratelimit_llm_input_hook_is_pre_phased_for_llm_entity() {
+        let meta = lookup(HOOK_RATELIMIT_LLM_INPUT).expect("registered");
+        assert_eq!(meta.entity_type, Some(ENTITY_LLM));
+        assert_eq!(meta.phase, HookPhase::Pre);
     }
 
     #[test]
@@ -514,12 +523,12 @@ mod tests {
         assert_eq!(METADATA_HOOK_METADATA.len(), 1);
         assert_eq!(
             RATELIMIT_HOOK_METADATA.len(),
-            2,
+            3,
             "the rate-limit family declares a hook per stage"
         );
         assert_eq!(
             BUILTIN_HOOK_METADATA.len(),
-            16,
+            17,
             "every family's hooks reach the built-in table"
         );
         for table in HOOK_TABLES {
@@ -602,6 +611,7 @@ mod tests {
             HOOK_METADATA_FETCH,
             HOOK_RATELIMIT_PRE_IDENTITY,
             HOOK_RATELIMIT_POST_IDENTITY,
+            HOOK_RATELIMIT_LLM_INPUT,
         ] {
             assert!(
                 BUILTIN_HOOK_METADATA.iter().any(|(n, _)| *n == name),
@@ -622,12 +632,32 @@ mod tests {
             (DELEGATION_HOOK_METADATA, TokenDelegateHook::NAME),
             (ELICITATION_HOOK_METADATA, ElicitationHook::NAME),
             (METADATA_HOOK_METADATA, MetadataFetchHook::NAME),
-            (RATELIMIT_HOOK_METADATA, HttpHook::NAME),
         ] {
             for (name, meta) in table {
                 assert_eq!(meta.family, Some(family), "{name}");
             }
         }
+
+        let meta = lookup(HOOK_RATELIMIT_PRE_IDENTITY).expect("registered");
+        assert_eq!(
+            meta.family,
+            Some(HttpHook::NAME),
+            "pre_identity carries HttpHook payload"
+        );
+
+        let meta = lookup(HOOK_RATELIMIT_POST_IDENTITY).expect("registered");
+        assert_eq!(
+            meta.family,
+            Some(HttpHook::NAME),
+            "post_identity carries HttpHook payload"
+        );
+
+        let meta = lookup(HOOK_RATELIMIT_LLM_INPUT).expect("registered");
+        assert_eq!(
+            meta.family,
+            Some(CmfHook::NAME),
+            "llm_input carries CmfHook payload"
+        );
     }
 
     #[test]
